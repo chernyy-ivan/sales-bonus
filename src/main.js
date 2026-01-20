@@ -14,13 +14,13 @@ function calculateBonusByProfit(index, total, seller) {
     const { profit } = seller;
 
     if (index === 0) {
-        return profit * 0.15; // 15% лидеру
+        return profit * 0.15;
     } else if (index === 1 || index === 2) {
-        return profit * 0.10; // 10% второму и третьему местам
+        return profit * 0.10;
     } else if (index === total - 1 && total > 1) {
-        return 0;             // 0% последнему
+        return 0;
     } else {
-        return profit * 0.05; // 5% остальным
+        return profit * 0.05;
     }
 }
 
@@ -28,23 +28,30 @@ function calculateBonusByProfit(index, total, seller) {
  * Шаг 4-8. Главная функция анализа данных продаж
  */
 function analyzeSalesData(data, options) {
-    // --- Шаг 6. Валидация входных данных ---
+    // --- ИСПРАВЛЕННЫЙ БЛОК ВАЛИДАЦИИ (Шаг 6) ---
     if (!data 
         || !Array.isArray(data.sellers) 
         || !Array.isArray(data.products) 
         || !Array.isArray(data.purchase_records)
         || data.sellers.length === 0
+        || data.products.length === 0          // Добавлена проверка на пустой массив товаров
+        || data.purchase_records.length === 0   // Добавлена проверка на пустой массив чеков
     ) {
         throw new Error('Некорректные входные данные');
     }
 
-    // --- Шаг 6. Проверка опций ---
+    // Проверка наличия объекта опций и функций внутри него
+    if (!options || typeof options !== 'object') {
+        throw new Error('Параметр options должен быть объектом');
+    }
+
     const { calculateRevenue, calculateBonus } = options;
+
     if (typeof calculateRevenue !== 'function' || typeof calculateBonus !== 'function') {
         throw new Error('Функции расчёта обязательны в объекте options');
     }
 
-    // --- Шаг 5. Подготовка индексов (для быстрого доступа) ---
+    // --- Шаг 5. Индексация ---
     const productIndex = Object.fromEntries(data.products.map(p => [p.sku, p]));
     const sellerStats = data.sellers.map(seller => ({
         id: seller.id,
@@ -56,7 +63,7 @@ function analyzeSalesData(data, options) {
     }));
     const sellerIndex = Object.fromEntries(sellerStats.map(s => [s.id, s]));
 
-    // --- Шаг 7. Обработка чеков и товаров (Двойной цикл) ---
+    // --- Шаг 7. Обработка чеков и товаров ---
     data.purchase_records.forEach(record => {
         const seller = sellerIndex[record.seller_id];
         if (!seller) return;
@@ -84,18 +91,15 @@ function analyzeSalesData(data, options) {
 
     // --- Шаг 8. Назначение премий и формирование топ-10 ---
     sellerStats.forEach((seller, index) => {
-        // Рассчитываем бонус
         seller.bonus = calculateBonus(index, sellerStats.length, seller);
 
-        // Формируем массив топ-10 товаров
         seller.top_products = Object.entries(seller.products_sold)
             .map(([sku, quantity]) => ({ sku, quantity }))
             .sort((a, b) => b.quantity - a.quantity)
             .slice(0, 10);
     });
 
-    // --- Шаг 8. Формирование и возврат итогового отчёта ---
-    
+    // --- Шаг 8. Формирование итогового отчёта ---
     return sellerStats.map(seller => ({
         seller_id: seller.id,
         name: seller.name,
